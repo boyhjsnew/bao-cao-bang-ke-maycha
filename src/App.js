@@ -51,7 +51,10 @@ function App() {
       "Tuổi vàng": row.inv_tuoivang,
       "Số lượng": row.inv_quantity,
       "Đơn giá": row.inv_unitPrice ? row.inv_unitPrice : null, // Use raw value
-      "Trọng lượng": row.inv_trongluong ? row.inv_trongluong : null, // Use raw value
+      // Ensure 3 decimal places and force the dot as decimal separator
+      "Trọng lượng": row.inv_trongluong
+        ? parseFloat(row.inv_trongluong).toFixed(3).replace(",", ".")
+        : null, // Ensure 3 decimal points and replace comma with dot
       "Tiền công": row.inv_tiencong ? row.inv_tiencong : null, // Use raw value
       "Tổng tiền hàng": row.inv_TotalAmountWithoutVat
         ? row.inv_TotalAmountWithoutVat
@@ -97,9 +100,14 @@ function App() {
         const address = { r: R, c: C };
         const cell = ws[XLSX.utils.encode_cell(address)];
 
-        // Set numeric cells to number type
+        // Ensure that numbers are formatted correctly
         if (cell && cell.v !== null && !isNaN(cell.v)) {
           cell.t = "n"; // Mark as number type in Excel
+          // Format numbers with dot as decimal separator
+          if (typeof cell.v === "number") {
+            // Ensure number is formatted with dot as decimal separator
+            cell.v = parseFloat(cell.v).toFixed(3); // Force 3 decimals
+          }
         }
       }
     }

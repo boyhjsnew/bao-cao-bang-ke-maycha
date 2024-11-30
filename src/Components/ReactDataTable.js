@@ -24,9 +24,9 @@ export default function ReactDataTable(props) {
         <DataTable
           value={flattenedInvoices}
           paginator
+          paginatorPosition="bottom"
           rows={5}
           scrollable
-          scrollHeight="850px"
           sortField="true"
           rowsPerPageOptions={[props.invoices.length]}
         >
