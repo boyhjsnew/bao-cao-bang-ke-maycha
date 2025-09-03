@@ -19,14 +19,24 @@ function App() {
   const paginatorRight = <Button type="button" icon="pi pi-download" text />;
   const [visible, setVisible] = useState(false);
   const [invoices, setInvoices] = useState([]);
-  const handleInvoices = (invoicesData) => {
+  const [selectedTaxCode, setSelectedTaxCode] = useState(null); // Thêm state để lưu mã số thuế đã chọn
+
+  const handleInvoices = (invoicesData, taxCode) => {
+    // Cập nhật để nhận thêm taxCode
     setInvoices(invoicesData);
+    setSelectedTaxCode(taxCode); // Lưu mã số thuế đã chọn
   };
 
   // Function để xác định tuyến dựa trên mã số thuế và ký hiệu
   const getTuyenBySeries = (taxCode, series) => {
+    // Sử dụng taxCode được truyền vào từ ReactDataTable
+    if (!taxCode) {
+      console.log("getTuyenBySeries - Không có mã số thuế");
+      return "Không có MST";
+    }
+
     const tuyens = {
-      3500676761: {
+      "3500676761": {
         "5C25MHM": "BX Vũng Tàu - BX Miền Tây",
         "5C25MBT": "BX Bà Rịa - BX Miền Tây",
         "5C25MAD": "BX Vũng Tàu - BX Miền Tây",
@@ -37,7 +47,7 @@ function App() {
       "3500676761-001": {
         "5C25MHM": "BX Miền Tây - BX Vũng Tàu",
         "5C25MBT": "BX Miền Tây - BX Bà Rịa",
-        "5C25MAD": "BX Miền Tây - BX Vũng Tàu",
+        "5C25MAD": "BX Miền Tây - BX Vũng Tây",
         "5C25MAC": "BX Miền Tây - BX Bà Rịa",
         "5C25MAB": "BX. MIỀN ĐÔNG - BX. VŨNG TÀU",
         "5C25MAA": "Phường Bến Thành - Phường Vũng Tàu",
@@ -45,7 +55,12 @@ function App() {
     };
 
     // Debug log để kiểm tra
-    //console.log("getTuyenBySeries - taxCode:", taxCode, "series:", series);
+    console.log(
+      "getTuyenBySeries - taxCode:",
+      taxCode,
+      "series:",
+      series
+    );
 
     // Chỉ xử lý 2 mã số thuế được định nghĩa
     if (!tuyens[taxCode]) {
@@ -178,10 +193,7 @@ function App() {
     mergedInvoices.forEach((row) => {
       const dataRow = worksheet.addRow([
         row.inv_invoiceSeries || "",
-        getTuyenBySeries(
-          row.inv_buyerTaxCode || "3500676761",
-          row.inv_invoiceSeries
-        ) || "",
+        getTuyenBySeries(row.inv_buyerTaxCode || "3500676761", row.inv_invoiceSeries) || "",
         row.inv_invoiceIssuedDate
           ? new Date(row.inv_invoiceIssuedDate).toLocaleDateString("vi-VN", {
               day: "2-digit",

@@ -39,7 +39,19 @@ export default function Modal(props) {
   // Effect để load danh sách ký hiệu khi chọn mã số thuế
   useEffect(() => {
     if (selectedTaxCode) {
+      // Reset danh sách ký hiệu đã chọn và ký hiệu tùy chỉnh
+      setSelectedSeries([]);
+      setCustomSeries("");
+      setUseCustomSeries(false);
+      
+      // Load danh sách ký hiệu mới cho mã số thuế đã chọn
       loadInvoiceSeries(selectedTaxCode.code);
+    } else {
+      // Nếu không có mã số thuế, reset tất cả
+      setSelectedSeries([]);
+      setCustomSeries("");
+      setUseCustomSeries(false);
+      setSeriesOptions([]);
     }
   }, [selectedTaxCode]);
 
