@@ -36,7 +36,7 @@ function App() {
     }
 
     const tuyens = {
-      "3500676761": {
+      3500676761: {
         "5C25MHM": "BX Vũng Tàu - BX Miền Tây",
         "5C25MBT": "BX Bà Rịa - BX Miền Tây",
         "5C25MAD": "BX Vũng Tàu - BX Miền Tây",
@@ -55,12 +55,7 @@ function App() {
     };
 
     // Debug log để kiểm tra
-    console.log(
-      "getTuyenBySeries - taxCode:",
-      taxCode,
-      "series:",
-      series
-    );
+    console.log("getTuyenBySeries - taxCode:", taxCode, "series:", series);
 
     // Chỉ xử lý 2 mã số thuế được định nghĩa
     if (!tuyens[taxCode]) {
@@ -86,57 +81,54 @@ function App() {
     return [invoice];
   });
 
-  // Group by biển số xe và sắp xếp theo thứ tự: ký hiệu, ngày, biển số xe
+  // Group by ký hiệu, ngày và biển số xe (giống SQL GROUP BY)
   const groupedInvoices = flattenedInvoices.reduce((groups, invoice) => {
-    const bienSoXe = invoice.inv_departureDate || "Không có biển số";
+    // Tạo key duy nhất từ 3 trường: ký hiệu + ngày + biển số xe
+    const key = `${invoice.inv_invoiceSeries || ""}_${
+      invoice.inv_invoiceIssuedDate || ""
+    }_${invoice.inv_departureDate || "Không có biển số"}`;
 
-    if (!groups[bienSoXe]) {
-      groups[bienSoXe] = [];
+    if (!groups[key]) {
+      groups[key] = [];
     }
-    groups[bienSoXe].push(invoice);
+    groups[key].push(invoice);
     return groups;
   }, {});
 
-  // Gộp các dòng có cùng biển số xe thành 1 dòng và cộng dồn số liệu
+  // Debug log để kiểm tra
+  console.log("Số lượng dòng gốc:", flattenedInvoices.length);
+  console.log(
+    "Số lượng nhóm sau khi group:",
+    Object.keys(groupedInvoices).length
+  );
+  console.log("Các nhóm:", Object.keys(groupedInvoices).slice(0, 5));
+
+  // Gộp các dòng có cùng ký hiệu, ngày và biển số xe thành 1 dòng và cộng dồn số liệu
   const mergedInvoices = Object.keys(groupedInvoices)
     .sort((a, b) => {
-      // Sắp xếp theo biển số xe
+      // Sắp xếp theo key để giữ thứ tự logic
       return a.localeCompare(b);
     })
-    .map((bienSoXe) => {
-      const invoicesInGroup = groupedInvoices[bienSoXe];
+    .map((key) => {
+      const invoicesInGroup = groupedInvoices[key];
 
-      // Sắp xếp dữ liệu trong mỗi nhóm theo ký hiệu, ngày
-      const sortedInvoices = invoicesInGroup.sort((a, b) => {
-        // Sắp xếp theo ký hiệu trước
-        const seriesCompare = (a.inv_invoiceSeries || "").localeCompare(
-          b.inv_invoiceSeries || ""
-        );
-        if (seriesCompare !== 0) return seriesCompare;
-
-        // Nếu ký hiệu giống nhau, sắp xếp theo ngày
-        const dateA = new Date(a.inv_invoiceIssuedDate || "");
-        const dateB = new Date(b.inv_invoiceIssuedDate || "");
-        return dateA - dateB;
-      });
-
-      // Lấy thông tin từ dòng đầu tiên của nhóm
-      const firstInvoice = sortedInvoices[0];
+      // Lấy thông tin từ dòng đầu tiên của nhóm (vì đã cùng ký hiệu, ngày, biển số xe)
+      const firstInvoice = invoicesInGroup[0];
 
       // Cộng dồn các cột số liệu
-      const totalQuantity = sortedInvoices.reduce(
+      const totalQuantity = invoicesInGroup.reduce(
         (sum, inv) => sum + (Number(inv.inv_quantity) || 0),
         0
       );
-      const totalBeforeTax = sortedInvoices.reduce(
+      const totalBeforeTax = invoicesInGroup.reduce(
         (sum, inv) => sum + (Number(inv.inv_TotalAmountWithoutVat) || 0),
         0
       );
-      const totalTax = sortedInvoices.reduce(
+      const totalTax = invoicesInGroup.reduce(
         (sum, inv) => sum + (Number(inv.inv_vatAmount) || 0),
         0
       );
-      const totalAmount = sortedInvoices.reduce(
+      const totalAmount = invoicesInGroup.reduce(
         (sum, inv) => sum + (Number(inv.inv_TotalAmount) || 0),
         0
       );
@@ -150,6 +142,18 @@ function App() {
         inv_TotalAmount: totalAmount,
       };
     });
+
+  // Debug log để kiểm tra kết quả
+  console.log("Số lượng dòng sau khi merge:", mergedInvoices.length);
+  console.log(
+    "Mẫu dữ liệu sau khi merge:",
+    mergedInvoices.slice(0, 3).map((item) => ({
+      series: item.inv_invoiceSeries,
+      date: item.inv_invoiceIssuedDate,
+      bienSo: item.inv_departureDate,
+      quantity: item.inv_quantity,
+    }))
+  );
   const exportToExcel = async () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("bao-cao-chi-tiet");
@@ -193,7 +197,10 @@ function App() {
     mergedInvoices.forEach((row) => {
       const dataRow = worksheet.addRow([
         row.inv_invoiceSeries || "",
-        getTuyenBySeries(row.inv_buyerTaxCode || "3500676761", row.inv_invoiceSeries) || "",
+        getTuyenBySeries(
+          row.inv_buyerTaxCode || "3500676761",
+          row.inv_invoiceSeries
+        ) || "",
         row.inv_invoiceIssuedDate
           ? new Date(row.inv_invoiceIssuedDate).toLocaleDateString("vi-VN", {
               day: "2-digit",

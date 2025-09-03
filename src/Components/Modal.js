@@ -43,7 +43,7 @@ export default function Modal(props) {
       setSelectedSeries([]);
       setCustomSeries("");
       setUseCustomSeries(false);
-      
+
       // Load danh sách ký hiệu mới cho mã số thuế đã chọn
       loadInvoiceSeries(selectedTaxCode.code);
     } else {
