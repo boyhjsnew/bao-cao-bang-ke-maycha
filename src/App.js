@@ -44,7 +44,19 @@ function App() {
       },
     };
 
-    return tuyens[taxCode]?.[series] || series || "";
+    // Debug log để kiểm tra
+    //console.log("getTuyenBySeries - taxCode:", taxCode, "series:", series);
+
+    // Chỉ xử lý 2 mã số thuế được định nghĩa
+    if (!tuyens[taxCode]) {
+      console.log("getTuyenBySeries - Mã số thuế không được hỗ trợ:", taxCode);
+      return "Không xác định";
+    }
+
+    const result = tuyens[taxCode]?.[series];
+    console.log("getTuyenBySeries - result:", result);
+
+    return result || "Không xác định";
   };
 
   const flattenedInvoices = (invoices || []).flatMap((invoice) => {

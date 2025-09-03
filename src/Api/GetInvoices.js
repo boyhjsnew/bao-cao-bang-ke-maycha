@@ -27,13 +27,30 @@ const getInvoices = async (taxCode, tuNgay, denngay, khieu) => {
 
       if (!Array.isArray(resData) || resData.length === 0) break;
 
-      allData.push(...resData);
+      // Đảm bảo ký hiệu được gán đúng cho mỗi record
+      const processedData = resData.map((item) => ({
+        ...item,
+        inv_invoiceSeries: khieu,
+        inv_buyerTaxCode: taxCode, // Đảm bảo mã số thuế được gán đúng
+      }));
+
+      allData.push(...processedData);
 
       if (resData.length < limit) break;
       start += limit;
     }
 
     allData.sort((a, b) => a.inv_invoiceNumber - b.inv_invoiceNumber);
+
+    // Log để debug
+    console.log(
+      `Dữ liệu cho ký hiệu ${khieu}:`,
+      allData.slice(0, 3).map((item) => ({
+        series: item.inv_invoiceSeries,
+        number: item.inv_invoiceNumber,
+      }))
+    );
+
     return allData;
   } catch (error) {
     console.error("Error calling API:", error.message);
@@ -88,6 +105,7 @@ const getInvoicesBySeriesList = async (
   };
 
   let allData = [];
+  let start = 0;
   const limit = 300;
 
   try {
@@ -105,10 +123,9 @@ const getInvoicesBySeriesList = async (
       }
 
       console.log(`Đang lấy dữ liệu cho ký hiệu: ${khieu}`);
-      let start = 0; // Reset start cho mỗi ký hiệu mới
-      let hasMoreData = true;
+      let start = 0;
 
-      while (hasMoreData) {
+      while (true) {
         const body = {
           tuNgay,
           denngay,
@@ -120,29 +137,35 @@ const getInvoicesBySeriesList = async (
         const response = await axios.post(url, body, { headers });
         const resData = response?.data?.data || [];
 
-        if (!Array.isArray(resData) || resData.length === 0) {
-          hasMoreData = false;
-          break;
-        }
+        if (!Array.isArray(resData) || resData.length === 0) break;
 
-        // Thêm dữ liệu vào mảng tổng
-        allData.push(...resData);
-        console.log(
-          `Đã lấy ${resData.length} hóa đơn cho ký hiệu ${khieu}, tổng cộng: ${allData.length} hóa đơn`
-        );
+        // Thêm ký hiệu vào mỗi record để đảm bảo mapping đúng
+        const processedData = resData.map((item) => ({
+          ...item,
+          inv_invoiceSeries: khieu, // Đảm bảo ký hiệu được gán đúng
+          inv_buyerTaxCode: taxCode, // Đảm bảo mã số thuế được gán đúng
+        }));
 
-        // Kiểm tra xem còn dữ liệu không
-        if (resData.length < limit) {
-          hasMoreData = false;
-        } else {
-          start += limit;
-        }
+        allData.push(...processedData);
+
+        if (resData.length < limit) break;
+        start += limit;
       }
     }
 
     // Sắp xếp lại toàn bộ dữ liệu theo số hóa đơn
     allData.sort((a, b) => a.inv_invoiceNumber - b.inv_invoiceNumber);
-    console.log(`Tổng số hóa đơn đã lấy: ${allData.length}`);
+
+    // Log để debug
+    console.log(
+      "Dữ liệu sau khi xử lý:",
+      allData.slice(0, 5).map((item) => ({
+        series: item.inv_invoiceSeries,
+        number: item.inv_invoiceNumber,
+        date: item.inv_invoiceIssuedDate,
+      }))
+    );
+
     return allData;
   } catch (error) {
     console.error("Error fetching invoices by series list:", error);

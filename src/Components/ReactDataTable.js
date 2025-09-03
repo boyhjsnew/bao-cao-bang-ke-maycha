@@ -80,6 +80,15 @@ export default function ReactDataTable(props) {
             body={(rowData) => {
               const taxCode = rowData.inv_buyerTaxCode || "3500676761";
               const series = rowData.inv_invoiceSeries;
+
+              // Debug log
+              console.log(
+                "ReactDataTable - taxCode:",
+                taxCode,
+                "series:",
+                series
+              );
+
               return props.getTuyenBySeries
                 ? props.getTuyenBySeries(taxCode, series)
                 : series;
