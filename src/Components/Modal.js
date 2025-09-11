@@ -6,6 +6,7 @@ import { Calendar } from "primereact/calendar";
 import { Dropdown } from "primereact/dropdown";
 import { MultiSelect } from "primereact/multiselect";
 import { ProgressBar } from "primereact/progressbar";
+import { RadioButton } from "primereact/radiobutton";
 import { addLocale, locale } from "primereact/api";
 import "../Api/GetInvoices";
 import getInvoices, {
@@ -14,7 +15,6 @@ import getInvoices, {
 } from "../Api/GetInvoices";
 
 export default function Modal(props) {
-  const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState("center");
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
@@ -28,10 +28,18 @@ export default function Modal(props) {
   const [loadingData, setLoadingData] = useState(false); // State để hiển thị loading khi lấy dữ liệu
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
+  const [selectedReportType, setSelectedReportType] = useState(
+    props.reportType || "theo-bien-so-xe"
+  );
 
   const taxCodes = [
     { name: "3500676761", code: "3500676761" },
     { name: "3500676761-001", code: "3500676761-001" },
+  ];
+
+  const reportTypes = [
+    { name: "Theo biển số xe", value: "theo-bien-so-xe" },
+    { name: "Báo cáo tổng hợp tem, vé", value: "tong-hop-tem-ve" },
   ];
 
   const trangthaiCQT = [{ statusTax: "Gốc", code: "1" }];
@@ -134,7 +142,6 @@ export default function Modal(props) {
 
   const show = (position) => {
     setPosition(position);
-    setVisible(true);
   };
 
   const getAllInvoice = async () => {
@@ -207,7 +214,11 @@ export default function Modal(props) {
       }
 
       console.log("Tổng số hóa đơn nhận được:", allInvoices.length);
-      props.setInvoices(Array.isArray(allInvoices) ? allInvoices : []);
+      props.setInvoices(
+        Array.isArray(allInvoices) ? allInvoices : [],
+        taxCode,
+        selectedReportType
+      );
       props.setVisible(false);
     } catch (error) {
       console.error("Error fetching invoices:", error);
@@ -239,7 +250,37 @@ export default function Modal(props) {
         draggable={false}
         resizable={false}
       >
-        {/* Mã số thuế - Đặt trên cùng */}
+        {/* Chọn loại báo cáo - Đặt trên cùng */}
+        <div className="card flex-row pb-3">
+          <div className="flex flex-column w-full mt-10">
+            <label htmlFor="reportType" className="mb-3">
+              Chọn loại báo cáo:
+            </label>
+            <div className="flex flex-row gap-4">
+              {reportTypes.map((type) => (
+                <div key={type.value} className="flex align-items-center">
+                  <RadioButton
+                    inputId={type.value}
+                    name="reportType"
+                    value={type.value}
+                    onChange={(e) => {
+                      setSelectedReportType(e.value);
+                      if (props.setReportType) {
+                        props.setReportType(e.value);
+                      }
+                    }}
+                    checked={selectedReportType === type.value}
+                  />
+                  <label htmlFor={type.value} className="ml-2">
+                    {type.name}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Mã số thuế */}
         <div className="card flex-row pb-3">
           <div className="flex flex-row justify-content-between w-full mt-10">
             <label htmlFor="taxcode">Mã số thuế</label>

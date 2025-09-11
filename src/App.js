@@ -1,30 +1,24 @@
-import logo from "./logo.svg";
-
 import { Button } from "primereact/button";
-
-import { DataTable } from "primereact/datatable";
-import { Column } from "primereact/column";
 
 import "../src/App.css";
 import ReactDataTable from "./Components/ReactDataTable";
 import { useState } from "react";
 import Modal from "./Components/Modal";
-import * as XLSX from "xlsx"; // Import xlsx for Excel export
 import * as ExcelJS from "exceljs";
 
 import { saveAs } from "file-saver"; // Import file-saver to save the file
 
 function App() {
-  const paginatorLeft = <Button type="button" icon="pi pi-refresh" text />;
-  const paginatorRight = <Button type="button" icon="pi pi-download" text />;
   const [visible, setVisible] = useState(false);
   const [invoices, setInvoices] = useState([]);
   const [selectedTaxCode, setSelectedTaxCode] = useState(null); // Thêm state để lưu mã số thuế đã chọn
+  const [reportType, setReportType] = useState("theo-bien-so-xe"); // State để quản lý loại báo cáo
 
-  const handleInvoices = (invoicesData, taxCode) => {
-    // Cập nhật để nhận thêm taxCode
+  const handleInvoices = (invoicesData, taxCode, reportType) => {
+    // Cập nhật để nhận thêm taxCode và reportType
     setInvoices(invoicesData);
     setSelectedTaxCode(taxCode); // Lưu mã số thuế đã chọn
+    setReportType(reportType); // Lưu loại báo cáo đã chọn
   };
 
   // Function để xác định tuyến dựa trên mã số thuế và ký hiệu
@@ -81,21 +75,40 @@ function App() {
     return [invoice];
   });
 
-  // Group by ký hiệu, ngày và biển số xe (giống SQL GROUP BY)
-  const groupedInvoices = flattenedInvoices.reduce((groups, invoice) => {
-    // Tạo key duy nhất từ 3 trường: ký hiệu + ngày + biển số xe
-    const key = `${invoice.inv_invoiceSeries || ""}_${
-      invoice.inv_invoiceIssuedDate || ""
-    }_${invoice.inv_departureDate || "Không có biển số"}`;
+  // Xử lý dữ liệu dựa trên loại báo cáo
+  let groupedInvoices = {};
 
-    if (!groups[key]) {
-      groups[key] = [];
-    }
-    groups[key].push(invoice);
-    return groups;
-  }, {});
+  if (reportType === "tong-hop-tem-ve") {
+    // Báo cáo tổng hợp tem, vé: Group by Ký hiệu + Ngày
+    groupedInvoices = flattenedInvoices.reduce((groups, invoice) => {
+      const key = `${invoice.inv_invoiceSeries || ""}_${
+        invoice.inv_invoiceIssuedDate || ""
+      }`;
+
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(invoice);
+      return groups;
+    }, {});
+  } else {
+    // Báo cáo theo biển số xe: Group by ký hiệu, ngày và biển số xe
+    groupedInvoices = flattenedInvoices.reduce((groups, invoice) => {
+      // Tạo key duy nhất từ 3 trường: ký hiệu + ngày + biển số xe
+      const key = `${invoice.inv_invoiceSeries || ""}_${
+        invoice.inv_invoiceIssuedDate || ""
+      }_${invoice.inv_departureDate || "Không có biển số"}`;
+
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(invoice);
+      return groups;
+    }, {});
+  }
 
   // Debug log để kiểm tra
+  console.log("Loại báo cáo:", reportType);
   console.log("Số lượng dòng gốc:", flattenedInvoices.length);
   console.log(
     "Số lượng nhóm sau khi group:",
@@ -103,7 +116,7 @@ function App() {
   );
   console.log("Các nhóm:", Object.keys(groupedInvoices).slice(0, 5));
 
-  // Gộp các dòng có cùng ký hiệu, ngày và biển số xe thành 1 dòng và cộng dồn số liệu
+  // Gộp các dòng theo logic tương ứng với loại báo cáo
   const mergedInvoices = Object.keys(groupedInvoices)
     .sort((a, b) => {
       // Sắp xếp theo key để giữ thứ tự logic
@@ -112,7 +125,7 @@ function App() {
     .map((key) => {
       const invoicesInGroup = groupedInvoices[key];
 
-      // Lấy thông tin từ dòng đầu tiên của nhóm (vì đã cùng ký hiệu, ngày, biển số xe)
+      // Lấy thông tin từ dòng đầu tiên của nhóm
       const firstInvoice = invoicesInGroup[0];
 
       // Cộng dồn các cột số liệu
@@ -140,6 +153,10 @@ function App() {
         inv_TotalAmountWithoutVat: totalBeforeTax,
         inv_vatAmount: totalTax,
         inv_TotalAmount: totalAmount,
+        // Thêm thông tin về số lượng dòng gộp cho báo cáo tổng hợp tem, vé
+        ...(reportType === "tong-hop-tem-ve" && {
+          _groupCount: invoicesInGroup.length,
+        }),
       };
     });
 
@@ -152,25 +169,40 @@ function App() {
       date: item.inv_invoiceIssuedDate,
       bienSo: item.inv_departureDate,
       quantity: item.inv_quantity,
+      groupCount: item._groupCount,
     }))
   );
   const exportToExcel = async () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("bao-cao-chi-tiet");
 
-    // Thêm tiêu đề - chỉ giữ lại các cột được yêu cầu
-    const headers = [
-      "Ký Hiệu",
-      "Tuyến",
-      "Ngày Hóa Đơn",
-      "Biển số xe",
-      "Số lượng",
-      "Đơn giá",
-      "Tiền trước thuế",
-      "Tiền Thuế",
-      "Thành tiền",
-      "Ghi chú",
-    ];
+    // Thêm tiêu đề - khác nhau tùy theo loại báo cáo
+    const headers =
+      reportType === "tong-hop-tem-ve"
+        ? [
+            "Ký Hiệu",
+            "Ngày Hóa Đơn",
+            "Tên hàng",
+            "Số lượng",
+            "Đơn giá",
+            "Tiền trước thuế",
+            "Tiền Thuế",
+            "Thành tiền",
+            "Ghi chú",
+          ]
+        : [
+            "Ký Hiệu",
+            "Tuyến",
+            "Ngày Hóa Đơn",
+            "Biển số xe",
+            "Tên hàng",
+            "Số lượng",
+            "Đơn giá",
+            "Tiền trước thuế",
+            "Tiền Thuế",
+            "Thành tiền",
+            "Ghi chú",
+          ];
     worksheet.addRow(headers);
 
     // Áp dụng style cho tiêu đề
@@ -193,34 +225,64 @@ function App() {
       };
     });
 
-    // Thêm dữ liệu - chỉ giữ lại các cột được yêu cầu
+    // Thêm dữ liệu - khác nhau tùy theo loại báo cáo
     mergedInvoices.forEach((row) => {
-      const dataRow = worksheet.addRow([
-        row.inv_invoiceSeries || "",
-        getTuyenBySeries(
-          row.inv_buyerTaxCode || "3500676761",
-          row.inv_invoiceSeries
-        ) || "",
-        row.inv_invoiceIssuedDate
-          ? new Date(row.inv_invoiceIssuedDate).toLocaleDateString("vi-VN", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-            })
-          : "",
-        row.inv_departureDate || "",
-        row.inv_quantity ? Number(row.inv_quantity) : "",
-        row.inv_unitPrice ? Number(row.inv_unitPrice) : "",
-        row.inv_TotalAmountWithoutVat
-          ? Number(row.inv_TotalAmountWithoutVat)
-          : "",
-        row.inv_vatAmount ? Number(row.inv_vatAmount) : "",
-        row.inv_TotalAmount ? Number(row.inv_TotalAmount) : "",
-        row.ghi_chu || "",
-      ]);
+      if (reportType === "tong-hop-tem-ve") {
+        // Báo cáo tổng hợp tem, vé: Không có Tuyến và Biển số xe
+        const dataRow = worksheet.addRow([
+          row.inv_invoiceSeries || "",
+          row.inv_invoiceIssuedDate
+            ? new Date(row.inv_invoiceIssuedDate).toLocaleDateString("vi-VN", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })
+            : "",
+          row.inv_itemName || "",
+          row.inv_quantity ? Number(row.inv_quantity) : "",
+          row.inv_unitPrice ? Number(row.inv_unitPrice) : "",
+          row.inv_TotalAmountWithoutVat
+            ? Number(row.inv_TotalAmountWithoutVat)
+            : "",
+          row.inv_vatAmount ? Number(row.inv_vatAmount) : "",
+          row.inv_TotalAmount ? Number(row.inv_TotalAmount) : "",
+          row.ghi_chu || "",
+        ]);
+      } else {
+        // Báo cáo theo biển số xe: Có đầy đủ các cột
+        const dataRow = worksheet.addRow([
+          row.inv_invoiceSeries || "",
+          getTuyenBySeries(
+            row.inv_buyerTaxCode || "3500676761",
+            row.inv_invoiceSeries
+          ) || "",
+          row.inv_invoiceIssuedDate
+            ? new Date(row.inv_invoiceIssuedDate).toLocaleDateString("vi-VN", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })
+            : "",
+          row.inv_departureDate || "",
+          row.inv_itemName || "",
+          row.inv_quantity ? Number(row.inv_quantity) : "",
+          row.inv_unitPrice ? Number(row.inv_unitPrice) : "",
+          row.inv_TotalAmountWithoutVat
+            ? Number(row.inv_TotalAmountWithoutVat)
+            : "",
+          row.inv_vatAmount ? Number(row.inv_vatAmount) : "",
+          row.inv_TotalAmount ? Number(row.inv_TotalAmount) : "",
+          row.ghi_chu || "",
+        ]);
+      }
 
       // Thêm viền cho từng ô dữ liệu
-      dataRow.eachCell((cell) => {
+      const currentRow =
+        reportType === "tong-hop-tem-ve"
+          ? worksheet.getRow(worksheet.rowCount)
+          : worksheet.getRow(worksheet.rowCount);
+
+      currentRow.eachCell((cell) => {
         cell.border = {
           top: { style: "thin", color: { argb: "FF000000" } },
           left: { style: "thin", color: { argb: "FF000000" } },
@@ -248,19 +310,33 @@ function App() {
       0
     );
 
-    // Thêm dòng tổng cộng
-    const totalRow = [
-      "Tổng cộng",
-      "",
-      "",
-      "",
-      totalSoLuong,
-      "",
-      totalTruocThue,
-      totalThue,
-      totalThanhTien,
-      "",
-    ];
+    // Thêm dòng tổng cộng - khác nhau tùy theo loại báo cáo
+    const totalRow =
+      reportType === "tong-hop-tem-ve"
+        ? [
+            "Tổng cộng",
+            "",
+            "",
+            totalSoLuong,
+            "",
+            totalTruocThue,
+            totalThue,
+            totalThanhTien,
+            "",
+          ]
+        : [
+            "Tổng cộng",
+            "",
+            "",
+            "",
+            "",
+            totalSoLuong,
+            "",
+            totalTruocThue,
+            totalThue,
+            totalThanhTien,
+            "",
+          ];
     const lastRow = worksheet.addRow(totalRow);
 
     // Định dạng dòng tổng cộng
@@ -320,6 +396,8 @@ function App() {
         visible={visible}
         setVisible={setVisible}
         setInvoices={handleInvoices}
+        reportType={reportType}
+        setReportType={setReportType}
       ></Modal>
     </div>
   );

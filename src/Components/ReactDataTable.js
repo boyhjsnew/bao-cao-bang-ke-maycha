@@ -3,18 +3,8 @@ import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 
 export default function ReactDataTable(props) {
-  // Chuyển đổi dữ liệu với kiểm tra an toàn
-  const flattenedInvoices = (props.invoices || []).flatMap((invoice) => {
-    // Kiểm tra nếu invoice.details tồn tại và là mảng
-    if (invoice && invoice.details && Array.isArray(invoice.details)) {
-      return invoice.details.map((detail) => ({
-        ...invoice, // Thêm thông tin hóa đơn vào chi tiết
-        ...detail, // Gộp thông tin chi tiết
-      }));
-    }
-    // Nếu không có details, trả về invoice gốc
-    return [invoice];
-  });
+  // Sử dụng dữ liệu đã được xử lý từ App.js
+  const displayData = props.invoices || [];
 
   return (
     <div
@@ -27,13 +17,13 @@ export default function ReactDataTable(props) {
     >
       <div className="card w-full">
         <DataTable
-          value={flattenedInvoices}
+          value={displayData}
           paginator
           paginatorPosition="bottom"
           rows={5}
           scrollable
           sortField="true"
-          rowsPerPageOptions={[(props.invoices || []).length]}
+          rowsPerPageOptions={[displayData.length]}
         >
           {/* Cột thông tin hóa đơn */}
           <Column
@@ -119,6 +109,17 @@ export default function ReactDataTable(props) {
             sortable
             field="inv_departureDate"
             header="Biển số xe"
+            style={{
+              width: "1%",
+              fontSize: "14px",
+              minWidth: "160px",
+            }}
+          ></Column>
+
+          <Column
+            sortable
+            field="inv_itemName"
+            header="Tên hàng"
             style={{
               width: "1%",
               fontSize: "14px",
