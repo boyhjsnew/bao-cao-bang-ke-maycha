@@ -240,6 +240,16 @@ export default function ReactDataTable(props) {
                     padding: "10px",
                     textAlign: "center",
                     border: "1px solid #000",
+                    minWidth: "130px",
+                  }}
+                >
+                  Số đơn hàng
+                </th>
+                <th
+                  style={{
+                    padding: "10px",
+                    textAlign: "center",
+                    border: "1px solid #000",
                     minWidth: "200px",
                   }}
                 >
@@ -326,7 +336,7 @@ export default function ReactDataTable(props) {
                     {/* Dòng header nhóm */}
                     <tr style={{ backgroundColor: "#E7E6E6" }}>
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         style={{
                           padding: "8px 10px",
                           fontWeight: "bold",
@@ -390,6 +400,14 @@ export default function ReactDataTable(props) {
                                   border: "1px solid #000",
                                 }}
                               >
+                                {invoice.so_benh_an || ""}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "8px 10px",
+                                  border: "1px solid #000",
+                                }}
+                              >
                                 {invoice.inv_buyerDisplayName ||
                                   invoice.inv_buyerLegalName ||
                                   invoice.ten ||
@@ -401,7 +419,7 @@ export default function ReactDataTable(props) {
                                   border: "1px solid #000",
                                 }}
                               >
-                                {invoice.inv_buyerTaxCode || invoice.mst || ""}
+                                {invoice.inv_buyerTaxCode || ""}
                               </td>
                               <td
                                 style={{
@@ -438,7 +456,7 @@ export default function ReactDataTable(props) {
                         {remainingCount > 0 && (
                           <tr style={{ backgroundColor: "#FFF3CD" }}>
                             <td
-                              colSpan={9}
+                              colSpan={10}
                               style={{
                                 padding: "8px 10px",
                                 textAlign: "center",
@@ -459,7 +477,7 @@ export default function ReactDataTable(props) {
                       // Hiển thị dòng trống nếu không có dữ liệu
                       <tr>
                         <td
-                          colSpan={9}
+                          colSpan={10}
                           style={{
                             padding: "8px 10px",
                             border: "1px solid #000",
@@ -473,7 +491,7 @@ export default function ReactDataTable(props) {
                       style={{ backgroundColor: "#E7E6E6", fontWeight: "bold" }}
                     >
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         style={{
                           padding: "8px 10px",
                           textAlign: "right",
@@ -540,7 +558,7 @@ export default function ReactDataTable(props) {
                     style={{ backgroundColor: "#E7E6E6", fontWeight: "bold" }}
                   >
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       style={{
                         padding: "8px 10px",
                         textAlign: "right",

@@ -468,10 +468,7 @@ function App() {
         // Báo cáo theo biển số xe: Có đầy đủ các cột
         const dataRow = worksheet.addRow([
           row.inv_invoiceSeries || "",
-          getTuyenBySeries(
-            row.inv_buyerTaxCode || "0317701572",
-            row.inv_invoiceSeries
-          ) || "",
+          getTuyenBySeries(row.inv_buyerTaxCode, row.inv_invoiceSeries) || "",
           row.inv_invoiceIssuedDate
             ? new Date(row.inv_invoiceIssuedDate).toLocaleDateString("vi-VN", {
                 day: "2-digit",
@@ -633,6 +630,7 @@ function App() {
       "Tên cửa hàng",
       "Ngày hóa đơn",
       "Số hóa đơn",
+      "Số đơn hàng",
       "Tên khách hàng",
       "Mã số thuế",
       "Tổng tiền trước thuế",
@@ -670,6 +668,7 @@ function App() {
       { width: 20 }, // Tên cửa hàng
       { width: 15 }, // Ngày hóa đơn
       { width: 15 }, // Số hóa đơn
+      { width: 15 }, // Số đơn hàng
       { width: 30 }, // Tên khách hàng
       { width: 18 }, // Mã số thuế
       { width: 20 }, // Tổng tiền trước thuế
@@ -700,11 +699,12 @@ function App() {
       "",
       "",
       "",
+      "",
     ]);
     rowsAdded++;
 
-    // Merge từ cột 1 đến cột 10
-    ws.mergeCells(groupHeaderRow.number, 1, groupHeaderRow.number, 10);
+    // Merge từ cột 1 đến cột 11
+    ws.mergeCells(groupHeaderRow.number, 1, groupHeaderRow.number, 11);
     groupHeaderRow.getCell(1).font = { bold: true };
     groupHeaderRow.getCell(1).fill = {
       type: "pattern",
@@ -724,7 +724,7 @@ function App() {
 
     if (groupInvoices.length === 0) {
       // Nếu không có dữ liệu, thêm dòng trống
-      const emptyRow = ws.addRow(["", "", "", "", "", "", "", "", "", ""]);
+      const emptyRow = ws.addRow(["", "", "", "", "", "", "", "", "", "", ""]);
       rowsAdded++;
       emptyRow.eachCell((cell) => {
         cell.border = {
@@ -746,19 +746,20 @@ function App() {
           invoice.tencuahang || "",
           formatDate(invoice.inv_invoiceIssuedDate),
           invoice.inv_invoiceNumber || "",
+          invoice.so_benh_an || "",
           invoice.inv_buyerDisplayName ||
             invoice.inv_buyerLegalName ||
             invoice.ten ||
             "",
-          invoice.inv_buyerTaxCode || invoice.mst || "",
+          invoice.inv_buyerTaxCode || "",
           invoice.inv_TotalAmountWithoutVat || 0,
           invoice.inv_vatAmount || 0,
           getInvoiceStatus(invoice),
         ]);
 
-        // Format số cho các cột tiền (cột 8 và 9)
-        dataRow.getCell(8).numFmt = "#,##0";
+        // Format số cho các cột tiền (cột 9 và 10)
         dataRow.getCell(9).numFmt = "#,##0";
+        dataRow.getCell(10).numFmt = "#,##0";
 
         // Tối ưu: Chỉ style khi không chia sheet hoặc số dòng ít
         if (!isSplitMode || ws.rowCount < 50000) {
@@ -776,11 +777,11 @@ function App() {
             horizontal: "center",
             vertical: "middle",
           };
-          dataRow.getCell(8).alignment = {
+          dataRow.getCell(9).alignment = {
             horizontal: "right",
             vertical: "middle",
           };
-          dataRow.getCell(9).alignment = {
+          dataRow.getCell(10).alignment = {
             horizontal: "right",
             vertical: "middle",
           };
@@ -806,6 +807,7 @@ function App() {
         "",
         "",
         "",
+        "",
         "Tổng cộng",
         groupTotalBeforeTax,
         groupTotalTax,
@@ -813,8 +815,8 @@ function App() {
       ]);
 
       // Format số cho dòng tổng
-      groupTotalRow.getCell(8).numFmt = "#,##0";
       groupTotalRow.getCell(9).numFmt = "#,##0";
+      groupTotalRow.getCell(10).numFmt = "#,##0";
 
       groupTotalRow.font = { bold: true };
       groupTotalRow.fill = {
@@ -822,15 +824,15 @@ function App() {
         pattern: "solid",
         fgColor: { argb: "FFE7E6E6" },
       };
-      groupTotalRow.getCell(7).alignment = {
-        horizontal: "right",
-        vertical: "middle",
-      };
       groupTotalRow.getCell(8).alignment = {
         horizontal: "right",
         vertical: "middle",
       };
       groupTotalRow.getCell(9).alignment = {
+        horizontal: "right",
+        vertical: "middle",
+      };
+      groupTotalRow.getCell(10).alignment = {
         horizontal: "right",
         vertical: "middle",
       };
@@ -878,6 +880,7 @@ function App() {
       "",
       "",
       "",
+      "",
       sheetIndex > 1 ? `Tổng cộng (Sheet ${sheetIndex})` : "Tổng cộng",
       grandTotalBeforeTax,
       grandTotalTax,
@@ -885,8 +888,8 @@ function App() {
     ]);
 
     // Format số cho dòng tổng cộng
-    grandTotalRow.getCell(8).numFmt = "#,##0";
     grandTotalRow.getCell(9).numFmt = "#,##0";
+    grandTotalRow.getCell(10).numFmt = "#,##0";
 
     grandTotalRow.font = { bold: true };
     grandTotalRow.fill = {
@@ -894,15 +897,15 @@ function App() {
       pattern: "solid",
       fgColor: { argb: "FFE7E6E6" },
     };
-    grandTotalRow.getCell(7).alignment = {
-      horizontal: "right",
-      vertical: "middle",
-    };
     grandTotalRow.getCell(8).alignment = {
       horizontal: "right",
       vertical: "middle",
     };
     grandTotalRow.getCell(9).alignment = {
+      horizontal: "right",
+      vertical: "middle",
+    };
+    grandTotalRow.getCell(10).alignment = {
       horizontal: "right",
       vertical: "middle",
     };
@@ -948,6 +951,7 @@ function App() {
       "",
       "",
       "",
+      "",
       sheetIndex > 1 ? `Tổng cộng (Sheet ${sheetIndex})` : "Tổng cộng",
       grandTotalBeforeTax,
       grandTotalTax,
@@ -955,8 +959,8 @@ function App() {
     ]);
 
     // Format số cho dòng tổng cộng
-    grandTotalRow.getCell(8).numFmt = "#,##0";
     grandTotalRow.getCell(9).numFmt = "#,##0";
+    grandTotalRow.getCell(10).numFmt = "#,##0";
 
     grandTotalRow.font = { bold: true };
     grandTotalRow.fill = {
@@ -964,15 +968,15 @@ function App() {
       pattern: "solid",
       fgColor: { argb: "FFE7E6E6" },
     };
-    grandTotalRow.getCell(7).alignment = {
-      horizontal: "right",
-      vertical: "middle",
-    };
     grandTotalRow.getCell(8).alignment = {
       horizontal: "right",
       vertical: "middle",
     };
     grandTotalRow.getCell(9).alignment = {
+      horizontal: "right",
+      vertical: "middle",
+    };
+    grandTotalRow.getCell(10).alignment = {
       horizontal: "right",
       vertical: "middle",
     };
@@ -1407,7 +1411,7 @@ function App() {
     // Tạo CSV content
     let csvContent = "\uFEFF"; // BOM để Excel hiển thị tiếng Việt đúng
     csvContent +=
-      "#,Ký hiệu,Ngày hóa đơn,Số hóa đơn,Tên khách hàng,Mã số thuế,Tổng tiền trước thuế,Tổng tiền thuế,Ghi chú\n";
+      "#,Ký hiệu,Ngày hóa đơn,Số hóa đơn,Số đơn hàng,Tên khách hàng,Mã số thuế,Tổng tiền trước thuế,Tổng tiền thuế,Ghi chú\n";
 
     // Duyệt qua từng nhóm
     taxRateGroups.forEach((group) => {
@@ -1424,12 +1428,12 @@ function App() {
             invoice.inv_invoiceSeries || ""
           }","${formatDate(invoice.inv_invoiceIssuedDate)}","${
             invoice.inv_invoiceNumber || ""
-          }","${
+          }","${invoice.so_benh_an || ""}","${
             invoice.inv_buyerDisplayName ||
             invoice.inv_buyerLegalName ||
             invoice.ten ||
             ""
-          }","${invoice.inv_buyerTaxCode || invoice.mst || ""}","${formatNumber(
+          }","${invoice.inv_buyerTaxCode || ""}","${formatNumber(
             invoice.inv_TotalAmountWithoutVat
           )}","${formatNumber(invoice.inv_vatAmount)}","${getInvoiceStatus(
             invoice
@@ -1445,7 +1449,7 @@ function App() {
           (sum, inv) => sum + (Number(inv.inv_vatAmount) || 0),
           0
         );
-        csvContent += `,,,,,"Tổng cộng","${formatNumber(
+        csvContent += `,,,,,,"Tổng cộng","${formatNumber(
           groupTotalBeforeTax
         )}","${formatNumber(groupTotalTax)}",""\n`;
       }
@@ -1465,7 +1469,7 @@ function App() {
         0
       );
     });
-    csvContent += `,,,,,"Tổng cộng","${formatNumber(
+    csvContent += `,,,,,,"Tổng cộng","${formatNumber(
       grandTotalBeforeTax
     )}","${formatNumber(grandTotalTax)}",""\n`;
 
