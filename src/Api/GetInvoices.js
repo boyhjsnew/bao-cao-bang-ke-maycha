@@ -207,6 +207,21 @@ const getInvoiceSeries = async (taxCode) => {
       "1C25MKO",
       "1C25MKP",
       "1C25MKQ",
+      "1C25MAH",
+      "1C25MAY",
+      "1C25MBB",
+      "1C25MBE",
+      "1C25MBH",
+      "1C25MBP",
+      "1C25MBS",
+      "1C25MCR",
+      "1C25MDS",
+      "1C25MEC",
+      "1C25MGA",
+      "1C25MGC",
+      "1C25MGM",
+      "1C25MGR",
+      "1C25MGU",
     ];
 
     // Chuyển đổi dữ liệu để phù hợp với MultiSelect
