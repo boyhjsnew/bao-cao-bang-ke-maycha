@@ -98,57 +98,88 @@ function App() {
       }, {});
     } else if (currentReportType === "bang-ke-ban-ra") {
       // Bảng kê bán ra: Group theo thuế suất từ ma_thue trong details
-      // Xử lý từng hóa đơn gốc (không flatten)
-      const processedInvoices = invoicesArray.map((invoice) => {
-        // Tính thuế suất chính của hóa đơn từ details
-        let mainTaxRate = null;
+      // Gộp các detail có cùng ma_thue trong cùng hóa đơn thành 1 dòng (sum lại)
+      const processedDetails = [];
 
-        if (
-          invoice.details &&
-          Array.isArray(invoice.details) &&
-          invoice.details.length > 0
-        ) {
-          // Lấy ma_thue từ detail có giá trị lớn nhất
-          const detailsWithValue = invoice.details.filter(
-            (d) => d.inv_TotalAmountWithoutVat > 0
-          );
+      invoicesArray.forEach((invoice) => {
+        if (invoice.details && Array.isArray(invoice.details) && invoice.details.length > 0) {
+          // Group các detail theo ma_thue trong cùng hóa đơn
+          const detailsByTaxRate = {};
+          
+          invoice.details.forEach((detail) => {
+            const detailTaxRate = detail.ma_thue || "";
+            const key = detailTaxRate; // Key để group các detail cùng ma_thue
+            
+            if (!detailsByTaxRate[key]) {
+              detailsByTaxRate[key] = {
+                ma_thue: detailTaxRate,
+                inv_TotalAmountWithoutVat: 0,
+                inv_vatAmount: 0,
+                details: [],
+              };
+            }
+            
+            // Sum lại các detail cùng ma_thue
+            detailsByTaxRate[key].inv_TotalAmountWithoutVat += 
+              Number(detail.inv_TotalAmountWithoutVat) || 0;
+            detailsByTaxRate[key].inv_vatAmount += 
+              Number(detail.inv_vatAmount) || 0;
+            detailsByTaxRate[key].details.push(detail);
+          });
 
-          if (detailsWithValue.length > 0) {
-            // Lấy ma_thue từ detail có giá trị lớn nhất
-            const mainDetail = detailsWithValue.reduce((max, d) =>
-              d.inv_TotalAmountWithoutVat > max.inv_TotalAmountWithoutVat
-                ? d
-                : max
-            );
-            mainTaxRate = mainDetail.ma_thue;
-          } else {
-            // Nếu không có detail có giá trị, lấy ma_thue đầu tiên
-            mainTaxRate = invoice.details[0]?.ma_thue;
-          }
-        }
+          // Xử lý từng nhóm ma_thue trong hóa đơn
+          Object.values(detailsByTaxRate).forEach((taxGroup) => {
+            const detailTaxRate = taxGroup.ma_thue;
 
-        // Map ma_thue sang id nhóm thuế suất
-        // ma_thue có thể là: "8", "10", "5", "0", null, hoặc các giá trị khác
-        let taxRateGroupId = "khong-chiu"; // Default
+            // Map ma_thue sang id nhóm thuế suất
+            let taxRateGroupId = "khong-chiu"; // Default
 
-        if (mainTaxRate === "8") {
-          taxRateGroupId = "8";
-        } else if (mainTaxRate === "10") {
-          taxRateGroupId = "10";
-        } else if (mainTaxRate === "5") {
-          taxRateGroupId = "5";
-        } else if (mainTaxRate === "0") {
-          taxRateGroupId = "0";
-        } else if (
-          mainTaxRate &&
-          mainTaxRate !== "0" &&
-          mainTaxRate !== "5" &&
-          mainTaxRate !== "8" &&
-          mainTaxRate !== "10"
-        ) {
-          taxRateGroupId = "khac";
-        } else if (!mainTaxRate) {
-          // Nếu không có ma_thue, tính từ tổng
+            if (detailTaxRate === "8") {
+              taxRateGroupId = "8";
+            } else if (detailTaxRate === "10") {
+              taxRateGroupId = "10";
+            } else if (detailTaxRate === "5") {
+              taxRateGroupId = "5";
+            } else if (detailTaxRate === "0") {
+              taxRateGroupId = "0";
+            } else if (
+              detailTaxRate &&
+              detailTaxRate !== "0" &&
+              detailTaxRate !== "5" &&
+              detailTaxRate !== "8" &&
+              detailTaxRate !== "10"
+            ) {
+              taxRateGroupId = "khac";
+            } else if (!detailTaxRate) {
+              // Nếu không có ma_thue, tính từ tổng đã sum
+              if (taxGroup.inv_TotalAmountWithoutVat > 0) {
+                const calculatedRate =
+                  (taxGroup.inv_vatAmount / taxGroup.inv_TotalAmountWithoutVat) * 100;
+                if (Math.abs(calculatedRate) < 0.1) taxRateGroupId = "0";
+                else if (Math.abs(calculatedRate - 5) < 0.1) taxRateGroupId = "5";
+                else if (Math.abs(calculatedRate - 8) < 0.1) taxRateGroupId = "8";
+                else if (Math.abs(calculatedRate - 10) < 0.1) taxRateGroupId = "10";
+                else if (calculatedRate > 0) taxRateGroupId = "khac";
+                else taxRateGroupId = "khong-chiu";
+              } else {
+                taxRateGroupId = "khong-chiu";
+              }
+            }
+
+            // Tạo 1 record cho mỗi cặp (hóa đơn, ma_thue) với tổng tiền đã được sum
+            processedDetails.push({
+              ...invoice, // Thông tin hóa đơn
+              // Sử dụng giá trị đã sum từ các detail cùng ma_thue
+              inv_TotalAmountWithoutVat: taxGroup.inv_TotalAmountWithoutVat,
+              inv_vatAmount: taxGroup.inv_vatAmount,
+              ma_thue: detailTaxRate, // Lưu ma_thue để tham khảo
+              _taxRateGroupId: taxRateGroupId,
+            });
+          });
+        } else {
+          // Nếu không có details, xử lý như hóa đơn gốc
+          let taxRateGroupId = "khong-chiu";
+          
           if (invoice.inv_TotalAmountWithoutVat > 0) {
             const calculatedRate =
               (invoice.inv_vatAmount / invoice.inv_TotalAmountWithoutVat) * 100;
@@ -158,25 +189,23 @@ function App() {
             else if (Math.abs(calculatedRate - 10) < 0.1) taxRateGroupId = "10";
             else if (calculatedRate > 0) taxRateGroupId = "khac";
             else taxRateGroupId = "khong-chiu";
-          } else {
-            taxRateGroupId = "khong-chiu";
           }
-        }
 
-        return {
-          ...invoice,
-          _taxRateGroupId: taxRateGroupId,
-        };
+          processedDetails.push({
+            ...invoice,
+            _taxRateGroupId: taxRateGroupId,
+          });
+        }
       });
 
       // Group theo thuế suất
-      groupedInvoices = processedInvoices.reduce((groups, invoice) => {
-        const taxRate = invoice._taxRateGroupId || "khong-chiu";
+      groupedInvoices = processedDetails.reduce((groups, detail) => {
+        const taxRate = detail._taxRateGroupId || "khong-chiu";
 
         if (!groups[taxRate]) {
           groups[taxRate] = [];
         }
-        groups[taxRate].push(invoice);
+        groups[taxRate].push(detail);
         return groups;
       }, {});
 
