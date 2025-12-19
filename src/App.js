@@ -16,7 +16,14 @@ function App() {
 
   const handleInvoices = (invoicesData, taxCode, reportType) => {
     // Cập nhật để nhận thêm taxCode và reportType
-    setInvoices(invoicesData);
+    // Loại bỏ các hóa đơn có trang_thai: 5 (hóa đơn lỗi)
+    const filteredData = Array.isArray(invoicesData)
+      ? invoicesData.filter((invoice) => {
+          const trangThai = invoice.trang_thai;
+          return trangThai !== 5; // Loại bỏ hóa đơn có trang_thai = 5
+        })
+      : [];
+    setInvoices(filteredData);
     setSelectedTaxCode(taxCode); // Lưu mã số thuế đã chọn
     setReportType(reportType); // Lưu loại báo cáo đã chọn
   };
@@ -66,7 +73,13 @@ function App() {
   // Helper function để tính toán mergedInvoices từ invoices và reportType
   const calculateMergedInvoices = (invoicesData, currentReportType) => {
     // Đảm bảo invoicesData luôn là array
-    const invoicesArray = Array.isArray(invoicesData) ? invoicesData : [];
+    // Loại bỏ các hóa đơn có trang_thai: 5 (hóa đơn lỗi)
+    const invoicesArray = Array.isArray(invoicesData)
+      ? invoicesData.filter((invoice) => {
+          const trangThai = invoice.trang_thai;
+          return trangThai !== 5; // Loại bỏ hóa đơn có trang_thai = 5
+        })
+      : [];
 
     const flattenedInvoices = invoicesArray.flatMap((invoice) => {
       // Kiểm tra nếu invoice.details tồn tại và là mảng
@@ -667,24 +680,30 @@ function App() {
     });
 
     // Flatten tất cả các detail của từng hóa đơn
+    // Loại bỏ các hóa đơn có trang_thai: 5 (hóa đơn lỗi)
     const allDetails = [];
-    invoices.forEach((invoice) => {
-      if (
-        invoice.details &&
-        Array.isArray(invoice.details) &&
-        invoice.details.length > 0
-      ) {
-        invoice.details.forEach((detail) => {
-          allDetails.push({
-            ...invoice,
-            ...detail,
+    invoices
+      .filter((invoice) => {
+        const trangThai = invoice.trang_thai;
+        return trangThai !== 5; // Loại bỏ hóa đơn có trang_thai = 5
+      })
+      .forEach((invoice) => {
+        if (
+          invoice.details &&
+          Array.isArray(invoice.details) &&
+          invoice.details.length > 0
+        ) {
+          invoice.details.forEach((detail) => {
+            allDetails.push({
+              ...invoice,
+              ...detail,
+            });
           });
-        });
-      } else {
-        // Nếu không có details, vẫn thêm hóa đơn vào
-        allDetails.push(invoice);
-      }
-    });
+        } else {
+          // Nếu không có details, vẫn thêm hóa đơn vào
+          allDetails.push(invoice);
+        }
+      });
 
     // Thêm dữ liệu
     allDetails.forEach((row) => {
