@@ -1847,11 +1847,11 @@ function App() {
           className="w-[1.5] min-h-full border-solid border-1 border-round-sm ml-2 text-sm "
         ></Button>
 
-        <Button
+        {/* <Button
           onClick={exportBaoCaoChiTiet}
           label="Xuất báo cáo chi tiết"
           className="w-[1.5] min-h-full border-solid border-1 border-round-sm ml-2 text-sm "
-        ></Button>
+        ></Button> */}
       </div>
       {/* table  */}
       <ReactDataTable
