@@ -102,14 +102,18 @@ function App() {
       const processedDetails = [];
 
       invoicesArray.forEach((invoice) => {
-        if (invoice.details && Array.isArray(invoice.details) && invoice.details.length > 0) {
+        if (
+          invoice.details &&
+          Array.isArray(invoice.details) &&
+          invoice.details.length > 0
+        ) {
           // Group các detail theo ma_thue trong cùng hóa đơn
           const detailsByTaxRate = {};
-          
+
           invoice.details.forEach((detail) => {
             const detailTaxRate = detail.ma_thue || "";
             const key = detailTaxRate; // Key để group các detail cùng ma_thue
-            
+
             if (!detailsByTaxRate[key]) {
               detailsByTaxRate[key] = {
                 ma_thue: detailTaxRate,
@@ -118,11 +122,11 @@ function App() {
                 details: [],
               };
             }
-            
+
             // Sum lại các detail cùng ma_thue
-            detailsByTaxRate[key].inv_TotalAmountWithoutVat += 
+            detailsByTaxRate[key].inv_TotalAmountWithoutVat +=
               Number(detail.inv_TotalAmountWithoutVat) || 0;
-            detailsByTaxRate[key].inv_vatAmount += 
+            detailsByTaxRate[key].inv_vatAmount +=
               Number(detail.inv_vatAmount) || 0;
             detailsByTaxRate[key].details.push(detail);
           });
@@ -154,11 +158,16 @@ function App() {
               // Nếu không có ma_thue, tính từ tổng đã sum
               if (taxGroup.inv_TotalAmountWithoutVat > 0) {
                 const calculatedRate =
-                  (taxGroup.inv_vatAmount / taxGroup.inv_TotalAmountWithoutVat) * 100;
+                  (taxGroup.inv_vatAmount /
+                    taxGroup.inv_TotalAmountWithoutVat) *
+                  100;
                 if (Math.abs(calculatedRate) < 0.1) taxRateGroupId = "0";
-                else if (Math.abs(calculatedRate - 5) < 0.1) taxRateGroupId = "5";
-                else if (Math.abs(calculatedRate - 8) < 0.1) taxRateGroupId = "8";
-                else if (Math.abs(calculatedRate - 10) < 0.1) taxRateGroupId = "10";
+                else if (Math.abs(calculatedRate - 5) < 0.1)
+                  taxRateGroupId = "5";
+                else if (Math.abs(calculatedRate - 8) < 0.1)
+                  taxRateGroupId = "8";
+                else if (Math.abs(calculatedRate - 10) < 0.1)
+                  taxRateGroupId = "10";
                 else if (calculatedRate > 0) taxRateGroupId = "khac";
                 else taxRateGroupId = "khong-chiu";
               } else {
@@ -179,7 +188,7 @@ function App() {
         } else {
           // Nếu không có details, xử lý như hóa đơn gốc
           let taxRateGroupId = "khong-chiu";
-          
+
           if (invoice.inv_TotalAmountWithoutVat > 0) {
             const calculatedRate =
               (invoice.inv_vatAmount / invoice.inv_TotalAmountWithoutVat) * 100;
@@ -599,6 +608,287 @@ function App() {
         right: { style: "thin", color: { argb: "FF000000" } },
       };
     });
+
+    // Lưu file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/octet-stream" });
+    saveAs(blob, "bao-cao-chi-tiet.xlsx");
+  };
+
+  // Hàm xuất báo cáo chi tiết (tất cả các detail của từng hóa đơn)
+  const exportBaoCaoChiTiet = async () => {
+    if (!invoices || invoices.length === 0) {
+      alert("Không có dữ liệu để xuất. Vui lòng lọc dữ liệu trước!");
+      return;
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("bao-cao-chi-tiet");
+
+    // Header cho báo cáo chi tiết
+    const headers = [
+      "Ký hiệu",
+      "Số hóa đơn",
+      "Số đơn hàng",
+      "Ngày hóa đơn",
+      "Tên khách hàng",
+      "Mã số thuế",
+      "Tên hàng",
+      "Mã hàng",
+      "Đơn vị tính",
+      "Số lượng",
+      "Đơn giá",
+      "Tiền trước thuế",
+      "Tiền thuế",
+      "Thành tiền",
+      "Thuế suất (%)",
+      "Ghi chú",
+    ];
+    worksheet.addRow(headers);
+
+    // Áp dụng style cho tiêu đề
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF0070C0" },
+    };
+    headerRow.alignment = { horizontal: "center", vertical: "middle" };
+
+    // Thêm viền cho tiêu đề
+    headerRow.eachCell((cell) => {
+      cell.border = {
+        top: { style: "thin", color: { argb: "FF000000" } },
+        left: { style: "thin", color: { argb: "FF000000" } },
+        bottom: { style: "thin", color: { argb: "FF000000" } },
+        right: { style: "thin", color: { argb: "FF000000" } },
+      };
+    });
+
+    // Flatten tất cả các detail của từng hóa đơn
+    const allDetails = [];
+    invoices.forEach((invoice) => {
+      if (
+        invoice.details &&
+        Array.isArray(invoice.details) &&
+        invoice.details.length > 0
+      ) {
+        invoice.details.forEach((detail) => {
+          allDetails.push({
+            ...invoice,
+            ...detail,
+          });
+        });
+      } else {
+        // Nếu không có details, vẫn thêm hóa đơn vào
+        allDetails.push(invoice);
+      }
+    });
+
+    // Thêm dữ liệu
+    allDetails.forEach((row) => {
+      const formatDate = (dateString) => {
+        if (!dateString) return "";
+        const date = new Date(dateString);
+        return date.toLocaleDateString("vi-VN", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
+      };
+
+      const getInvoiceStatus = (invoice) => {
+        const status =
+          invoice.trang_thai_hd !== undefined
+            ? invoice.trang_thai_hd
+            : invoice.invoiceStatus;
+
+        switch (status) {
+          case 0:
+            return "Gốc";
+          case 2:
+            return "Điều chỉnh";
+          case 3:
+            return "Thay thế";
+          case 5:
+            return "Bị điều chỉnh";
+          case 6:
+            return "Bị thay thế";
+          default:
+            return invoice.ghi_chu || "";
+        }
+      };
+
+      const dataRow = worksheet.addRow([
+        row.inv_invoiceSeries || "",
+        row.inv_invoiceNumber || "",
+        row.so_benh_an || "",
+        formatDate(row.inv_invoiceIssuedDate),
+        row.inv_buyerDisplayName || row.inv_buyerLegalName || row.ten || "",
+        row.inv_buyerTaxCode || "",
+        row.inv_itemName || "",
+        row.inv_itemCode || "",
+        row.inv_unitCode || "",
+        row.inv_quantity ? Number(row.inv_quantity) : "",
+        row.inv_unitPrice ? Number(row.inv_unitPrice) : "",
+        row.inv_TotalAmountWithoutVat
+          ? Number(row.inv_TotalAmountWithoutVat)
+          : "",
+        row.inv_vatAmount ? Number(row.inv_vatAmount) : "",
+        row.inv_TotalAmount ? Number(row.inv_TotalAmount) : "",
+        row.ma_thue || "",
+        getInvoiceStatus(row),
+      ]);
+
+      // Format số cho các cột tiền
+      if (row.inv_quantity) {
+        dataRow.getCell(10).numFmt = "#,##0.00";
+      }
+      if (row.inv_unitPrice) {
+        dataRow.getCell(11).numFmt = "#,##0";
+      }
+      if (row.inv_TotalAmountWithoutVat) {
+        dataRow.getCell(12).numFmt = "#,##0";
+      }
+      if (row.inv_vatAmount) {
+        dataRow.getCell(13).numFmt = "#,##0";
+      }
+      if (row.inv_TotalAmount) {
+        dataRow.getCell(14).numFmt = "#,##0";
+      }
+
+      // Thêm viền cho từng ô dữ liệu
+      dataRow.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin", color: { argb: "FF000000" } },
+          left: { style: "thin", color: { argb: "FF000000" } },
+          bottom: { style: "thin", color: { argb: "FF000000" } },
+          right: { style: "thin", color: { argb: "FF000000" } },
+        };
+        cell.alignment = { vertical: "middle" };
+      });
+
+      // Căn giữa cho các cột số
+      dataRow.getCell(10).alignment = {
+        horizontal: "right",
+        vertical: "middle",
+      };
+      dataRow.getCell(11).alignment = {
+        horizontal: "right",
+        vertical: "middle",
+      };
+      dataRow.getCell(12).alignment = {
+        horizontal: "right",
+        vertical: "middle",
+      };
+      dataRow.getCell(13).alignment = {
+        horizontal: "right",
+        vertical: "middle",
+      };
+      dataRow.getCell(14).alignment = {
+        horizontal: "right",
+        vertical: "middle",
+      };
+    });
+
+    // Tính tổng các cột
+    const totalSoLuong = allDetails.reduce(
+      (sum, row) => sum + (Number(row.inv_quantity) || 0),
+      0
+    );
+    const totalTruocThue = allDetails.reduce(
+      (sum, row) => sum + (Number(row.inv_TotalAmountWithoutVat) || 0),
+      0
+    );
+    const totalThue = allDetails.reduce(
+      (sum, row) => sum + (Number(row.inv_vatAmount) || 0),
+      0
+    );
+    const totalThanhTien = allDetails.reduce(
+      (sum, row) => sum + (Number(row.inv_TotalAmount) || 0),
+      0
+    );
+
+    // Thêm dòng tổng cộng
+    const totalRow = worksheet.addRow([
+      "Tổng cộng",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      totalSoLuong,
+      "",
+      totalTruocThue,
+      totalThue,
+      totalThanhTien,
+      "",
+      "",
+    ]);
+
+    // Format số cho dòng tổng
+    totalRow.getCell(10).numFmt = "#,##0.00";
+    totalRow.getCell(12).numFmt = "#,##0";
+    totalRow.getCell(13).numFmt = "#,##0";
+    totalRow.getCell(14).numFmt = "#,##0";
+
+    // Định dạng dòng tổng cộng
+    totalRow.font = { bold: true, color: { argb: "FF000000" } };
+    totalRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFCCCCCC" },
+    };
+    totalRow.getCell(10).alignment = {
+      horizontal: "right",
+      vertical: "middle",
+    };
+    totalRow.getCell(12).alignment = {
+      horizontal: "right",
+      vertical: "middle",
+    };
+    totalRow.getCell(13).alignment = {
+      horizontal: "right",
+      vertical: "middle",
+    };
+    totalRow.getCell(14).alignment = {
+      horizontal: "right",
+      vertical: "middle",
+    };
+
+    // Thêm viền cho dòng tổng cộng
+    totalRow.eachCell((cell) => {
+      cell.border = {
+        top: { style: "thin", color: { argb: "FF000000" } },
+        left: { style: "thin", color: { argb: "FF000000" } },
+        bottom: { style: "thin", color: { argb: "FF000000" } },
+        right: { style: "thin", color: { argb: "FF000000" } },
+      };
+    });
+
+    // Đặt độ rộng cột
+    worksheet.columns = [
+      { width: 15 }, // Ký hiệu
+      { width: 15 }, // Số hóa đơn
+      { width: 15 }, // Số đơn hàng
+      { width: 15 }, // Ngày hóa đơn
+      { width: 30 }, // Tên khách hàng
+      { width: 18 }, // Mã số thuế
+      { width: 30 }, // Tên hàng
+      { width: 15 }, // Mã hàng
+      { width: 12 }, // Đơn vị tính
+      { width: 12 }, // Số lượng
+      { width: 15 }, // Đơn giá
+      { width: 18 }, // Tiền trước thuế
+      { width: 15 }, // Tiền thuế
+      { width: 15 }, // Thành tiền
+      { width: 12 }, // Thuế suất
+      { width: 20 }, // Ghi chú
+    ];
 
     // Lưu file
     const buffer = await workbook.xlsx.writeBuffer();
@@ -1535,6 +1825,12 @@ function App() {
         <Button
           onClick={exportBangKeBanRa}
           label="Xuất bảng kê bán ra"
+          className="w-[1.5] min-h-full border-solid border-1 border-round-sm ml-2 text-sm "
+        ></Button>
+
+        <Button
+          onClick={exportBaoCaoChiTiet}
+          label="Xuất báo cáo chi tiết"
           className="w-[1.5] min-h-full border-solid border-1 border-round-sm ml-2 text-sm "
         ></Button>
       </div>
