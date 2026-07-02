@@ -11,7 +11,7 @@ import { saveAs } from "file-saver"; // Import file-saver to save the file
 function App() {
   const [visible, setVisible] = useState(false);
   const [invoices, setInvoices] = useState([]);
-  const [selectedTaxCode, setSelectedTaxCode] = useState(null); // Thêm state để lưu mã số thuế đã chọn
+  const [, setSelectedTaxCode] = useState(null);
   const [reportType, setReportType] = useState("bang-ke-ban-ra"); // State để quản lý loại báo cáo
 
   const handleInvoices = (invoicesData, taxCode, reportType) => {
@@ -496,7 +496,7 @@ function App() {
     mergedInvoices.forEach((row) => {
       if (reportType === "tong-hop-tem-ve") {
         // Báo cáo tổng hợp tem, vé: Không có Tuyến và Biển số xe
-        const dataRow = worksheet.addRow([
+        worksheet.addRow([
           row.inv_invoiceSeries || "",
           row.inv_invoiceIssuedDate
             ? new Date(row.inv_invoiceIssuedDate).toLocaleDateString("vi-VN", {
@@ -517,7 +517,7 @@ function App() {
         ]);
       } else {
         // Báo cáo theo biển số xe: Có đầy đủ các cột
-        const dataRow = worksheet.addRow([
+        worksheet.addRow([
           row.inv_invoiceSeries || "",
           getTuyenBySeries(row.inv_buyerTaxCode, row.inv_invoiceSeries) || "",
           row.inv_invoiceIssuedDate
@@ -1817,6 +1817,10 @@ function App() {
     });
     saveAs(blob, "bang-ke-ban-ra.csv");
   };
+
+  void exportToExcel;
+  void exportBaoCaoChiTiet;
+  void exportBangKeBanRaCSV;
 
   return (
     <div className="container">

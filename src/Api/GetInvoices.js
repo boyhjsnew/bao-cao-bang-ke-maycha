@@ -166,7 +166,8 @@ const getInvoicesBySeriesList = async (
         }
 
         // Đợi một chút trước khi retry (exponential backoff)
-        await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount));
+        const delayMs = 1000 * retryCount;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
     return [];
