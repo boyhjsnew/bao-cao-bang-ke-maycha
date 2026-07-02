@@ -311,7 +311,7 @@ export default function Modal(props) {
           // Đóng modal sau khi load xong
           setTimeout(() => {
             props.setVisible(false);
-          }, 2000); // Đợi 2 giây để người dùng thấy thông báo
+          }, 500);
         } else {
           setProgressMessage("Không có dữ liệu để hiển thị!");
           alert("Không có dữ liệu để hiển thị. Vui lòng kiểm tra lại!");

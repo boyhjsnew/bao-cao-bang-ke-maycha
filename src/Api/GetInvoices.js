@@ -117,6 +117,63 @@ const getInvoiceSeries = async (taxCode) => {
 };
 
 // API mới để lấy dữ liệu theo danh sách ký hiệu
+const SERIES_CONCURRENCY = 4;
+
+const fetchSeriesInvoices = async (
+  taxCode,
+  tuNgay,
+  denngay,
+  khieu,
+  url,
+  headers,
+  limit,
+  fetchWithRetry
+) => {
+  let seriesData = [];
+  let start = 0;
+
+  while (true) {
+    const body = {
+      tuNgay,
+      denngay,
+      khieu,
+      start,
+      coChiTiet: true,
+    };
+
+    let resData = [];
+    let success = false;
+
+    try {
+      resData = await fetchWithRetry(url, body, headers, khieu);
+      success = true;
+    } catch (error) {
+      success = false;
+    }
+
+    if (!success) {
+      start += limit;
+      if (start > 10000) break;
+      continue;
+    }
+
+    if (!Array.isArray(resData) || resData.length === 0) break;
+
+    const processedData = resData.map((item) => ({
+      ...item,
+      inv_invoiceSeries: khieu,
+      inv_buyerTaxCode: taxCode,
+    }));
+
+    seriesData.push(...processedData);
+
+    if (resData.length < limit) break;
+    start += limit;
+  }
+
+  return seriesData;
+};
+
 const getInvoicesBySeriesList = async (
   taxCode,
   tuNgay,
@@ -180,84 +237,37 @@ const getInvoicesBySeriesList = async (
       .filter((code) => !code.startsWith("1C23") && !code.startsWith("1C24"));
     // console.log("Danh sách ký hiệu đã chọn:", selectedSeriesCodes);
 
-    // Gọi API cho từng ký hiệu trong danh sách
-    for (let i = 0; i < selectedSeriesCodes.length; i++) {
-      const khieu = selectedSeriesCodes[i];
+    // Gọi API song song theo nhóm ký hiệu (giới hạn concurrency để tránh quá tải server)
+    let completedCount = 0;
 
-      // Gọi callback để cập nhật tiến trình
+    for (let i = 0; i < selectedSeriesCodes.length; i += SERIES_CONCURRENCY) {
+      const batch = selectedSeriesCodes.slice(i, i + SERIES_CONCURRENCY);
+
+      const batchResults = await Promise.all(
+        batch.map((khieu) =>
+          fetchSeriesInvoices(
+            taxCode,
+            tuNgay,
+            denngay,
+            khieu,
+            url,
+            headers,
+            limit,
+            fetchWithRetry
+          )
+        )
+      );
+
+      completedCount += batch.length;
       if (progressCallback) {
-        progressCallback(i + 1, selectedSeriesCodes.length);
+        progressCallback(completedCount, selectedSeriesCodes.length);
       }
 
-      // console.log(`Đang lấy dữ liệu cho ký hiệu: ${khieu}`);
-      let start = 0; // Reset start cho mỗi ký hiệu
+      batchResults.forEach((seriesData) => {
+        allData.push(...seriesData);
+      });
 
-      while (true) {
-        const body = {
-          tuNgay,
-          denngay,
-          khieu,
-          start,
-          coChiTiet: true,
-        };
-
-        let resData = [];
-        let success = false;
-
-        // Retry logic khi gặp lỗi
-        try {
-          resData = await fetchWithRetry(url, body, headers, khieu);
-          success = true;
-        } catch (error) {
-          // Đã thử hết số lần, bỏ qua batch này
-          success = false;
-        }
-
-        // Nếu không thành công sau khi retry, bỏ qua batch này
-        if (!success) {
-          // console.warn(
-          //   `Bỏ qua batch start=${start} cho ký hiệu ${khieu}, tiếp tục với batch tiếp theo...`
-          // );
-          // Tăng start để thử batch tiếp theo
-          start += limit;
-          // Nếu đã retry nhiều lần mà vẫn lỗi, có thể đã hết dữ liệu hoặc lỗi nghiêm trọng
-          // Thử tiếp tục với batch tiếp theo thay vì break hoàn toàn
-          if (start > 10000) {
-            // Giới hạn để tránh vòng lặp vô hạn
-            // console.warn(
-            //   `Đã thử quá nhiều batch cho ký hiệu ${khieu}, chuyển sang ký hiệu tiếp theo`
-            // );
-            break;
-          }
-          continue;
-        }
-
-        if (!Array.isArray(resData) || resData.length === 0) break;
-
-        // Thêm ký hiệu vào mỗi record để đảm bảo mapping đúng
-        const processedData = resData.map((item) => ({
-          ...item,
-          inv_invoiceSeries: khieu, // Đảm bảo ký hiệu được gán đúng
-          inv_buyerTaxCode: taxCode, // Đảm bảo mã số thuế được gán đúng
-        }));
-
-        allData.push(...processedData);
-
-        // Cập nhật dữ liệu từng phần sau mỗi batch thành công
-        if (dataUpdateCallback && allData.length > 0) {
-          const sortedData = [...allData].sort(
-            (a, b) => a.inv_invoiceNumber - b.inv_invoiceNumber
-          );
-          dataUpdateCallback(sortedData, taxCode);
-        }
-
-        if (resData.length < limit) break;
-        start += limit;
-      }
-
-      // Cập nhật dữ liệu từng phần sau mỗi ký hiệu (nếu chưa được cập nhật trong vòng lặp)
       if (dataUpdateCallback && allData.length > 0) {
-        // Sắp xếp tạm thời dữ liệu hiện có
         const sortedData = [...allData].sort(
           (a, b) => a.inv_invoiceNumber - b.inv_invoiceNumber
         );
