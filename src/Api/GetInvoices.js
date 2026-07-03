@@ -116,8 +116,33 @@ const getInvoiceSeries = async (taxCode) => {
   }
 };
 
-// API mới để lấy dữ liệu theo danh sách ký hiệu
-const SERIES_CONCURRENCY = 4;
+// Số ký hiệu gọi song song tối đa. Server minvoice chậm khi gọi nhiều request
+// cùng lúc (coChiTiet=true payload nặng) — thử 2 trước, có thể chỉnh 1 hoặc 3.
+const SERIES_CONCURRENCY = 2;
+
+const runWithConcurrency = async (items, concurrency, workerFn, onItemComplete) => {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  const runWorker = async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const item = items[index];
+      results[index] = await workerFn(item, index);
+      if (onItemComplete) {
+        onItemComplete(results[index], index + 1, items.length);
+      }
+    }
+  };
+
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(
+    Array.from({ length: workerCount }, () => runWorker())
+  );
+
+  return results;
+};
 
 const fetchSeriesInvoices = async (
   taxCode,
@@ -237,43 +262,36 @@ const getInvoicesBySeriesList = async (
       .filter((code) => !code.startsWith("1C23") && !code.startsWith("1C24"));
     // console.log("Danh sách ký hiệu đã chọn:", selectedSeriesCodes);
 
-    // Gọi API song song theo nhóm ký hiệu (giới hạn concurrency để tránh quá tải server)
-    let completedCount = 0;
+    // Luôn giữ tối đa SERIES_CONCURRENCY request — xong ký hiệu nào thì gọi ký hiệu tiếp theo ngay
+    await runWithConcurrency(
+      selectedSeriesCodes,
+      SERIES_CONCURRENCY,
+      (khieu) =>
+        fetchSeriesInvoices(
+          taxCode,
+          tuNgay,
+          denngay,
+          khieu,
+          url,
+          headers,
+          limit,
+          fetchWithRetry
+        ),
+      (seriesData, completedCount, total) => {
+        if (progressCallback) {
+          progressCallback(completedCount, total);
+        }
 
-    for (let i = 0; i < selectedSeriesCodes.length; i += SERIES_CONCURRENCY) {
-      const batch = selectedSeriesCodes.slice(i, i + SERIES_CONCURRENCY);
-
-      const batchResults = await Promise.all(
-        batch.map((khieu) =>
-          fetchSeriesInvoices(
-            taxCode,
-            tuNgay,
-            denngay,
-            khieu,
-            url,
-            headers,
-            limit,
-            fetchWithRetry
-          )
-        )
-      );
-
-      completedCount += batch.length;
-      if (progressCallback) {
-        progressCallback(completedCount, selectedSeriesCodes.length);
-      }
-
-      batchResults.forEach((seriesData) => {
         allData.push(...seriesData);
-      });
 
-      if (dataUpdateCallback && allData.length > 0) {
-        const sortedData = [...allData].sort(
-          (a, b) => a.inv_invoiceNumber - b.inv_invoiceNumber
-        );
-        dataUpdateCallback(sortedData, taxCode);
+        if (dataUpdateCallback && allData.length > 0) {
+          const sortedData = [...allData].sort(
+            (a, b) => a.inv_invoiceNumber - b.inv_invoiceNumber
+          );
+          dataUpdateCallback(sortedData, taxCode);
+        }
       }
-    }
+    );
 
     // Sắp xếp lại toàn bộ dữ liệu theo số hóa đơn
     allData.sort((a, b) => a.inv_invoiceNumber - b.inv_invoiceNumber);

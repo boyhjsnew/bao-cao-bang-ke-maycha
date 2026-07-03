@@ -951,6 +951,95 @@ function App() {
     }
   };
 
+  const getFieldValue = (invoice, ...keys) => {
+    for (const key of keys) {
+      const value = invoice[key];
+      if (value !== undefined && value !== null && value !== "") {
+        return value;
+      }
+    }
+    return "";
+  };
+
+  const getTrangThaiGuiCqt = (status) => {
+    switch (Number(status)) {
+      case 0:
+        return "Chờ duyệt";
+      case 1:
+        return "Chờ ký";
+      case 2:
+        return "Đã ký";
+      case 3:
+        return "Đã gửi";
+      case 4:
+        return "Thành công";
+      case 5:
+        return "Có lỗi";
+      case 6:
+        return "Đang ký";
+      default:
+        return "";
+    }
+  };
+
+  const getTrangThaiHoaDon = (invoice) => {
+    const status =
+      invoice.is_tthdon !== undefined
+        ? invoice.is_tthdon
+        : invoice.trang_thai_hd !== undefined
+        ? invoice.trang_thai_hd
+        : invoice.invoiceStatus;
+
+    switch (Number(status)) {
+      case 0:
+        return "Gốc";
+      case 1:
+        return "Hủy";
+      case 2:
+        return "Điều chỉnh";
+      case 3:
+        return "Thay thế";
+      case 4:
+        return "Giải trình";
+      case 5:
+        return "Bị thay thế";
+      case 6:
+        return "Bị điều chỉnh";
+      default:
+        return "";
+    }
+  };
+
+  const getUniqueInvoiceHeaders = (invoicesData) => {
+    const seen = new Set();
+
+    return (Array.isArray(invoicesData) ? invoicesData : [])
+      .filter((invoice) => invoice.trang_thai !== 5)
+      .filter((invoice) => {
+        const key = `${invoice.inv_invoiceSeries || ""}_${
+          invoice.inv_invoiceNumber || ""
+        }_${invoice.inv_invoiceIssuedDate || ""}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => {
+        const seriesA = a.inv_invoiceSeries || "";
+        const seriesB = b.inv_invoiceSeries || "";
+        if (seriesA !== seriesB) return seriesA.localeCompare(seriesB);
+
+        const dateA = a.inv_invoiceIssuedDate
+          ? new Date(a.inv_invoiceIssuedDate).getTime()
+          : 0;
+        const dateB = b.inv_invoiceIssuedDate
+          ? new Date(b.inv_invoiceIssuedDate).getTime()
+          : 0;
+        if (dateA !== dateB) return dateA - dateB;
+
+        return (Number(a.inv_invoiceNumber) || 0) - (Number(b.inv_invoiceNumber) || 0);
+      });
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return "";
     const date = new Date(dateString);
@@ -1818,6 +1907,215 @@ function App() {
     saveAs(blob, "bang-ke-ban-ra.csv");
   };
 
+  const exportBaoCaoTongHop = async () => {
+    if (!invoices || invoices.length === 0) {
+      alert("Không có dữ liệu để xuất. Vui lòng lọc dữ liệu trước!");
+      return;
+    }
+
+    const invoiceHeaders = getUniqueInvoiceHeaders(invoices);
+    if (invoiceHeaders.length === 0) {
+      alert("Không có dữ liệu hóa đơn hợp lệ để xuất!");
+      return;
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("bao-cao-tong-hop");
+
+    const headers = [
+      "Ký hiệu",
+      "Trạng thái gửi CQT",
+      "Ngày hóa đơn",
+      "Số hóa đơn",
+      "Số đơn hàng",
+      "Mã khách hàng",
+      "Tên đơn vị mua",
+      "Tên người mua",
+      "Địa chỉ",
+      "Mã số thuế",
+      "CCCD",
+      "Mã đơn vị QHNS",
+      "Tổng tiền hàng",
+      "Tổng tiền CK",
+      "Tổng tiền trước thuế",
+      "Tổng tiền thuế",
+      "Tổng tiền thanh toán",
+      "Tổng tiền thuế thu hộ CNKD",
+      "Mã tiền tệ",
+      "Tỷ giá",
+      "Hình thức TT",
+      "Mã tra cứu",
+      "Người lập",
+      "Trạng thái",
+      "Trường dự phòng 1",
+      "Mẫu số HĐ liên quan",
+      "Ký hiệu HĐ liên quan",
+      "Số HĐ liên quan",
+    ];
+    worksheet.addRow(headers);
+
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF0070C0" },
+    };
+    headerRow.alignment = { horizontal: "center", vertical: "middle" };
+    headerRow.eachCell((cell) => {
+      cell.border = {
+        top: { style: "thin", color: { argb: "FF000000" } },
+        left: { style: "thin", color: { argb: "FF000000" } },
+        bottom: { style: "thin", color: { argb: "FF000000" } },
+        right: { style: "thin", color: { argb: "FF000000" } },
+      };
+    });
+
+    const moneyColumns = [13, 14, 15, 16, 17, 18];
+
+    invoiceHeaders.forEach((invoice) => {
+      const rowValues = [
+        invoice.inv_invoiceSeries || "",
+        getTrangThaiGuiCqt(invoice.trang_thai),
+        formatDate(invoice.inv_invoiceIssuedDate),
+        invoice.inv_invoiceNumber || "",
+        getFieldValue(invoice, "so_don_hang", "so_benh_an", "inv_orderNumber"),
+        getFieldValue(
+          invoice,
+          "ma_khach_hang",
+          "inv_buyerCode",
+          "inv_buyerCustomerCode"
+        ),
+        getFieldValue(invoice, "inv_buyerLegalName", "ten_don_vi_mua"),
+        getFieldValue(
+          invoice,
+          "inv_buyerDisplayName",
+          "ten_nguoi_mua",
+          "ten"
+        ),
+        getFieldValue(
+          invoice,
+          "inv_buyerAddress",
+          "inv_buyerAddressLine",
+          "dia_chi"
+        ),
+        invoice.inv_buyerTaxCode || "",
+        getFieldValue(invoice, "inv_buyerIdCard", "cccd", "inv_buyerPassport"),
+        getFieldValue(
+          invoice,
+          "inv_buyerBudgetUnitCode",
+          "ma_don_vi_qhns",
+          "ma_qhns"
+        ),
+        Number(
+          getFieldValue(
+            invoice,
+            "inv_TotalGoodsAmount",
+            "tong_tien_hang",
+            "inv_TotalAmountWithoutVat"
+          )
+        ) || "",
+        Number(
+          getFieldValue(invoice, "inv_TotalDiscountAmount", "tong_tien_ck")
+        ) || "",
+        Number(invoice.inv_TotalAmountWithoutVat) || "",
+        Number(invoice.inv_vatAmount) || "",
+        Number(invoice.inv_TotalAmount) || "",
+        Number(
+          getFieldValue(invoice, "inv_TotalTaxCollected", "tong_thue_thu_ho")
+        ) || "",
+        getFieldValue(invoice, "inv_currencyCode", "ma_tien_te") || "VND",
+        getFieldValue(invoice, "inv_exchangeRate", "ty_gia") || "",
+        getFieldValue(
+          invoice,
+          "inv_paymentMethodName",
+          "hinh_thuc_tt",
+          "inv_paymentMethod"
+        ),
+        getFieldValue(
+          invoice,
+          "inv_lookupCode",
+          "ma_tra_cuu",
+          "ma_so_bi_mat"
+        ),
+        getFieldValue(
+          invoice,
+          "inv_creatorName",
+          "nguoi_lap",
+          "inv_createdByUser"
+        ),
+        getTrangThaiHoaDon(invoice),
+        getFieldValue(invoice, "inv_reserveField1", "truong_du_phong_1"),
+        getFieldValue(
+          invoice,
+          "inv_relatedInvoiceTemplate",
+          "mau_so_hd_lien_quan"
+        ),
+        getFieldValue(
+          invoice,
+          "inv_relatedInvoiceSeries",
+          "ky_hieu_hd_lien_quan"
+        ),
+        getFieldValue(invoice, "inv_relatedInvoiceNumber", "so_hd_lien_quan"),
+      ];
+
+      const dataRow = worksheet.addRow(rowValues);
+
+      moneyColumns.forEach((col) => {
+        const cell = dataRow.getCell(col);
+        if (cell.value !== "" && cell.value !== null) {
+          cell.numFmt = "#,##0";
+          cell.alignment = { horizontal: "right", vertical: "middle" };
+        }
+      });
+
+      dataRow.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin", color: { argb: "FF000000" } },
+          left: { style: "thin", color: { argb: "FF000000" } },
+          bottom: { style: "thin", color: { argb: "FF000000" } },
+          right: { style: "thin", color: { argb: "FF000000" } },
+        };
+        cell.alignment = { ...cell.alignment, vertical: "middle" };
+      });
+    });
+
+    worksheet.columns = [
+      { width: 14 },
+      { width: 18 },
+      { width: 14 },
+      { width: 14 },
+      { width: 14 },
+      { width: 14 },
+      { width: 28 },
+      { width: 22 },
+      { width: 30 },
+      { width: 16 },
+      { width: 16 },
+      { width: 16 },
+      { width: 16 },
+      { width: 14 },
+      { width: 18 },
+      { width: 16 },
+      { width: 18 },
+      { width: 22 },
+      { width: 10 },
+      { width: 10 },
+      { width: 14 },
+      { width: 18 },
+      { width: 16 },
+      { width: 14 },
+      { width: 16 },
+      { width: 18 },
+      { width: 18 },
+      { width: 16 },
+    ];
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/octet-stream" });
+    saveAs(blob, "bao-cao-tong-hop.xlsx");
+  };
+
   void exportToExcel;
   void exportBaoCaoChiTiet;
   void exportBangKeBanRaCSV;
@@ -1848,6 +2146,12 @@ function App() {
         <Button
           onClick={exportBangKeBanRa}
           label="Xuất bảng kê bán ra"
+          className="w-[1.5] min-h-full border-solid border-1 border-round-sm ml-2 text-sm "
+        ></Button>
+
+        <Button
+          onClick={exportBaoCaoTongHop}
+          label="Xuất báo cáo tổng hợp"
           className="w-[1.5] min-h-full border-solid border-1 border-round-sm ml-2 text-sm "
         ></Button>
 
